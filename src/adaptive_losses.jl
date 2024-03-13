@@ -249,6 +249,9 @@ function generate_adaptive_loss_function(pinnrep::PINNRepresentation,
     end
 end
 
+"""
+https://link.springer.com/article/10.1007/s11071-023-08654-w
+"""
 mutable struct HomoscedasticUncertaintyAdaptiveLoss{T <: Real} <: AbstractAdaptiveLoss
     reweight_every::Int64
     pde_loss_weights::Vector{T}
