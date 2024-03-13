@@ -248,3 +248,44 @@ function generate_adaptive_loss_function(pinnrep::PINNRepresentation,
         nothing
     end
 end
+
+mutable struct HomoscedasticUncertaintyAdaptiveLoss{T <: Real} <: AbstractAdaptiveLoss
+    reweight_every::Int64
+    pde_loss_weights::Vector{T}
+    bc_loss_weights::Vector{T}
+    additional_loss_weights::Vector{T}
+    SciMLBase.@add_kwonly function HomoscedasticUncertaintyAdaptiveLoss{T}(reweight_every;
+                                                                           pde_loss_weights = 0.0,
+                                                                           bc_loss_weights = 0.0,
+                                                                           additional_loss_weights = 0.0) where {
+                                                                                                               T <:
+                                                                                                               Real
+                                                                                                               }
+        new(convert(Int64, reweight_every),
+            vectorify(pde_loss_weights, T), vectorify(bc_loss_weights, T),
+            vectorify(additional_loss_weights, T))
+    end
+end
+
+SciMLBase.@add_kwonly function HomoscedasticUncertaintyAdaptiveLoss(reweight_every;
+                                                                    pde_loss_weights = 0.0,
+                                                                    bc_loss_weights = 0.0,
+                                                                    additional_loss_weights = 0.0)
+    HomoscedasticUncertaintyAdaptiveLoss{Float64}(reweight_every;
+                                                  pde_loss_weights = pde_loss_weights,
+                                                  bc_loss_weights = bc_loss_weights,
+                                                  additional_loss_weights = additional_loss_weights)
+end
+
+function generate_adaptive_loss_function(pinnrep::PINNRepresentation,
+                                         adaloss::HomoscedasticUncertaintyAdaptiveLoss,
+                                         pde_loss_functions, bc_loss_functions)
+    function null_nonadaptive_loss(θ, pde_losses, bc_losses)
+        # if pinnrep.iteration[1] % adaloss.reweight_every == 0
+        #     adaloss.pde_loss_weights .= exp.(-θ.pde_loss_weights)
+        #     adaloss.bc_loss_weights .= exp.(-θ.bc_loss_weights)
+        #     adaloss.additional_loss_weights .= exp.(-θ.additional_loss_weights)
+        # end
+        nothing
+    end
+end

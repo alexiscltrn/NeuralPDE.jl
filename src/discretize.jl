@@ -522,6 +522,13 @@ function SciMLBase.symbolic_discretize(pde_system::PDESystem,
     adaloss.additional_loss_weights = ones(adaloss_T, num_additional_loss) .*
                                       adaloss.additional_loss_weights
 
+    if isa(adaloss, HomoscedasticUncertaintyAdaptiveLoss)
+        pinnrep.flat_init_params = ComponentArrays.ComponentArray(flat_init_params;
+                                                                  pde_loss_weights = adaloss.pde_loss_weights,
+                                                                  bc_loss_weights = adaloss.bc_loss_weights,
+                                                                  additional_loss_weights = adaloss.additional_loss_weights)
+    end
+
     reweight_losses_func = generate_adaptive_loss_function(pinnrep, adaloss,
                                                            pde_loss_functions,
                                                            bc_loss_functions)
@@ -543,8 +550,18 @@ function SciMLBase.symbolic_discretize(pde_system::PDESystem,
                     bc_losses)
             end
 
-            weighted_pde_losses = adaloss.pde_loss_weights .* pde_losses
-            weighted_bc_losses = adaloss.bc_loss_weights .* bc_losses
+            if isa(adaloss, HomoscedasticUncertaintyAdaptiveLoss)
+                pde_loss_weights = exp.(-θ.pde_loss_weights)
+                bc_loss_weights = exp.(-θ.bc_loss_weights)
+                additional_loss_weights = exp.(-θ.additional_loss_weights)
+            else
+                pde_loss_weights = adaloss.pde_loss_weights
+                bc_loss_weights = adaloss.bc_loss_weights
+                additional_loss_weights = adaloss.additional_loss_weights
+            end
+
+            weighted_pde_losses = pde_loss_weights .* pde_losses
+            weighted_bc_losses = bc_loss_weights .* bc_losses
 
             sum_weighted_pde_losses = sum(weighted_pde_losses)
             sum_weighted_bc_losses = sum(weighted_bc_losses)
@@ -561,9 +578,13 @@ function SciMLBase.symbolic_discretize(pde_system::PDESystem,
                     end
                     return additional_loss(phi, θ_, p_)
                 end
-                weighted_additional_loss_val = adaloss.additional_loss_weights[1] *
+                weighted_additional_loss_val = additional_loss_weights[1] *
                                             _additional_loss(phi, θ)
                 weighted_loss_before_additional + weighted_additional_loss_val
+            end
+
+            if isa(adaloss, HomoscedasticUncertaintyAdaptiveLoss)
+                full_weighted_loss = full_weighted_loss + sum([θ.pde_loss_weights; θ.bc_loss_weights; θ.additional_loss_weights])
             end
 
             ChainRulesCore.@ignore_derivatives begin
@@ -608,7 +629,7 @@ function SciMLBase.symbolic_discretize(pde_system::PDESystem,
 
     function get_likelihood_estimate_function(discretization::BayesianPINN)
         dataset_pde, dataset_bc = discretization.dataset
-        
+
         # required as Physics loss also needed on the discrete dataset domain points
         # data points are discrete and so by default GridTraining loss applies
         # passing placeholder dx with GridTraining, it uses data points irl
@@ -637,7 +658,7 @@ function SciMLBase.symbolic_discretize(pde_system::PDESystem,
             end
 
             if !(databc_loss_functions isa Nothing)
-                bc_loglikelihoods += [logpdf(Normal(0, stdbcs[j]), bc_loss_function(θ)) 
+                bc_loglikelihoods += [logpdf(Normal(0, stdbcs[j]), bc_loss_function(θ))
                                     for (j, bc_loss_function) in enumerate(databc_loss_functions)]
             end
 
@@ -689,7 +710,7 @@ function SciMLBase.symbolic_discretize(pde_system::PDESystem,
 
     full_loss_function = get_likelihood_estimate_function(discretization)
     pinnrep.loss_functions = PINNLossFunctions(bc_loss_functions, pde_loss_functions,
-                                                full_loss_function, additional_loss, 
+                                                full_loss_function, additional_loss,
                                                 datafree_pde_loss_functions,
                                                 datafree_bc_loss_functions)
 
