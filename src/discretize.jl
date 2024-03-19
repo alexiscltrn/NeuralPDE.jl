@@ -283,11 +283,14 @@ function get_bounds(domains, eqs, bcs, eltypeθ, dict_indvars, dict_depvars,
 end
 
 function get_bounds(domains, eqs, bcs, eltypeθ, dict_indvars, dict_depvars, strategy)
-    dx = 1 / strategy.points
-    dict_span = Dict([Symbol(d.variables) => [
-                          infimum(d.domain) + dx,
-                          supremum(d.domain) - dx,
-                      ] for d in domains])
+    # dx = 1 / strategy.points
+    infimums = [infimum(d.domain) for d in domains]
+    supremums = [supremum(d.domain) for d in domains]
+    npoints= strategy.points
+
+    dict_span = map(domains, infimums, supremums) do d, i, s
+        Symbol(d.variables) => [i + (s - i)/npoints, s - (s - i)/npoints]
+    end |> Dict
 
     # pde_bounds = [[infimum(d.domain),supremum(d.domain)] for d in domains]
     pde_args = get_argument(eqs, dict_indvars, dict_depvars)
@@ -538,6 +541,8 @@ function SciMLBase.symbolic_discretize(pde_system::PDESystem,
             # the aggregation happens on cpu even if the losses are gpu, probably fine since it's only a few of them
             pde_losses = [pde_loss_function(θ) for pde_loss_function in pde_loss_functions]
             bc_losses = [bc_loss_function(θ) for bc_loss_function in bc_loss_functions]
+
+            bc_losses = isempty(bc_losses) ? convert(typeof(pde_losses), bc_losses) : bc_losses
 
             # this is kind of a hack, and means that whenever the outer function is evaluated the increment goes up, even if it's not being optimized
             # that's why we prefer the user to maintain the increment in the outer loop callback during optimization
