@@ -515,7 +515,7 @@ end
 function numeric_derivative(phi, u, x, εs, order, θ)
     _type = parameterless_type(ComponentArrays.getdata(θ))
 
-    ε = εs[order]
+    ChainRulesCore.@ignore_derivatives ε = εs[order]
     _epsilon = inv(first(ε[ε .!= zero(ε)]))
 
     ε = adapt(_type, ε)
